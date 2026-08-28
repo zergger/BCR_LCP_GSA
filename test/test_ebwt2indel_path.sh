@@ -162,6 +162,31 @@ PY
     "$EBWT2INDEL_BIN" -1 "$work_dir/reference_packed.pck_bwt" \
         -2 "$work_dir/alternate_packed.pck_bwt" -o "$work_dir/variants_packed.snp" -t 36 \
         >"$work_dir/variants_packed.log" 2>&1
+    python3 - "$truth" "$work_dir/variants_plain.snp" <<'PY'
+from pathlib import Path
+import csv
+import re
+import sys
+
+truth_path = Path(sys.argv[1])
+calls_path = Path(sys.argv[2])
+called = set(re.findall(r"type:_(?:SNP|INDEL)_event:([ACGT]*/[ACGT]*)", calls_path.read_text()))
+missing = []
+with truth_path.open(newline="") as handle:
+    for event in csv.DictReader(handle, delimiter="\t"):
+        ref = "" if event["ref"] == "-" else event["ref"]
+        alt = "" if event["alt"] == "-" else event["alt"]
+        allele = alt if not ref else ref
+        rotations = {allele[index:] + allele[:index] for index in range(len(allele))}
+        expected = {f"{ref}/{alt}", f"{alt}/{ref}"}
+        if event["type"] != "snp":
+            expected |= {f"/{rotation}" for rotation in rotations}
+            expected |= {f"{rotation}/" for rotation in rotations}
+        if called.isdisjoint(expected):
+            missing.append(event["event"])
+if missing:
+    raise SystemExit("known variants not recovered: " + ", ".join(missing))
+PY
     cmp "$work_dir/variants_plain.snp" "$work_dir/variants_rle.snp"
     cmp "$work_dir/variants_plain.snp" "$work_dir/variants_packed.snp"
 fi
