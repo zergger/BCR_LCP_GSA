@@ -78,7 +78,7 @@ public:
 		dataTypeNChar rankManySymbolsIntMem(dataTypedimAlpha , dataTypeNChar *,  dataTypeNChar, dataTypeNChar , uchar *);
 	#endif
 	
-	dataTypeNChar rankManySymbolsFilePartial(FILE &, dataTypeNChar *, dataTypeNChar, uchar *);
+	dataTypeNChar rankManySymbolsFilePartial(FILE &, dataTypeNChar *, dataTypeNChar, uchar *, uchar *);
 			
 	#if RLO==1
 		void sapSort(std::vector<sortElement> &v, dataTypeNSeq start, dataTypeNSeq end);

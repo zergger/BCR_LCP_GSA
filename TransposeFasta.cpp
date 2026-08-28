@@ -74,15 +74,17 @@ bool TransposeFasta::findLengthNseq( const string& input, const string& fileOutp
 
 	//lengthRead = CYCLENUM;
     
-	char *fileLen = new char[fileOutput.length()+10];
-	sprintf(fileLen, "%s.len", fileOutput.c_str());
-	
-	
+	#if STORE_LENGTH_IN_FILE == 1
+		char *fileLen = new char[fileOutput.length()+10];
+		sprintf(fileLen, "%s.len", fileOutput.c_str());
+	#endif
 
 	string bufChar;
 	
 	bool lenSeq = false;
-   	vector <dataTypelenSeq> lengthSeqVector;
+	#if STORE_LENGTH_IN_FILE == 1
+		vector <dataTypelenSeq> lengthSeqVector;
+	#endif
 
 	//Find max length and number of reads
 	dataTypelenSeq charsNumber=0;
@@ -121,7 +123,9 @@ bool TransposeFasta::findLengthNseq( const string& input, const string& fileOutp
 					
 					//dataTypeNSeq numchar = fwrite (&charsNumber, sizeof(dataTypelenSeq), 1 , OutFileLen);
 					//assert( numchar == 1); // we should always read the same number of characters
-					lengthSeqVector.push_back (charsNumber);
+					#if STORE_LENGTH_IN_FILE == 1
+						lengthSeqVector.push_back (charsNumber);
+					#endif
 					lengthTexts += charsNumber;
 					//if ((verboseEncode==1) || (verboseDistance ==1))
 						//std::cerr << "Length Sequence N. " << (int)(nSeq-1) << " is " << (int)charsNumber << " nSeq= "<< nSeq << std::endl;
@@ -149,7 +153,9 @@ bool TransposeFasta::findLengthNseq( const string& input, const string& fileOutp
 				lengthRead = charsNumber;
 			lenSeq = true;
 		}
-		lengthSeqVector.push_back (charsNumber);
+		#if STORE_LENGTH_IN_FILE == 1
+			lengthSeqVector.push_back (charsNumber);
+		#endif
 		lengthTexts += charsNumber;
 		infile.close();
 	//charsNumber--;
@@ -190,7 +196,9 @@ bool TransposeFasta::findLengthNseq( const string& input, const string& fileOutp
 				if (nSeq > 2)
 					lenSeq = true;
 			}
-			lengthSeqVector.push_back (charsNumber);
+			#if STORE_LENGTH_IN_FILE == 1
+				lengthSeqVector.push_back (charsNumber);
+			#endif
 			lengthTexts += charsNumber;
 					
 			//if (seq->qual.l) 
@@ -206,38 +214,26 @@ bool TransposeFasta::findLengthNseq( const string& input, const string& fileOutp
 	#endif
 	
 	
-	#if verboseEncode==1
-	   	dataTypeNChar sum=0;
-		for (dataTypeNSeq m=0; m < lengthSeqVector.size(); m++) {
-           		sum += lengthSeqVector[m];
-       }
-	#endif
-
-
 	if (lenSeq == true)
 		cerr << "The  (new and-or old) reads have a different length." << endl;
 	else
         cerr << "The (new and-or old) reads have the same length." << endl;
 
-	static FILE *OutFileLen;                  // output file of the end positions;
-	OutFileLen = fopen(fileLen, "wb");
-	if (OutFileLen==NULL) {
+	#if STORE_LENGTH_IN_FILE == 1
+		static FILE *OutFileLen;                  // output file of the end positions;
+		OutFileLen = fopen(fileLen, "wb");
+		if (OutFileLen==NULL) {
 			std::cerr << "TransposeFasta::findLengthNseq: could not open file \"" << fileLen << "\"!"<< std::endl;
 			exit (EXIT_FAILURE);
-	}
+		}
 
-	//Store vector in file
-	dataTypeNSeq numchar = fwrite (&lengthSeqVector[0], sizeof(dataTypelenSeq), lengthSeqVector.size(), OutFileLen);
-	
-//	std::cerr << "lengthTexts= " << (lengthTexts) << " lengthRead= " << (int)lengthRead << std::endl;
-//	std::cerr << "lengthSeqVector.size= " << (lengthSeqVector.size()) << " nSeq= " << nSeq << std::endl;
-	assert (lengthSeqVector.size() == numchar);
-	assert (lengthSeqVector.size() == nSeq);
-	
-	lengthSeqVector.clear();
-	//lengthSeqVector.shrink_to_fit();
-			
-	#if ( (BUILD_BCR_FROM_BCRpartials==1) && (STORE_LENGTH_IN_FILE==1)  )   //We have to add the length of the sequences from BCR partial files
+		//Store vector in file
+		dataTypeNSeq numchar = fwrite (&lengthSeqVector[0], sizeof(dataTypelenSeq), lengthSeqVector.size(), OutFileLen);
+		assert (lengthSeqVector.size() == numchar);
+		assert (lengthSeqVector.size() == nSeq);
+		lengthSeqVector.clear();
+
+	#if BUILD_BCR_FROM_BCRpartials==1   //We have to add the length of the sequences from BCR partial files
 		char *fnOutLenOld = new char[BCRprefPrev.length()+100];
 		sprintf(fnOutLenOld, "%s.len", BCRprefPrev.c_str());
 		FILE* OutFileLenOld = fopen(fnOutLenOld, "rb");
@@ -263,8 +259,9 @@ bool TransposeFasta::findLengthNseq( const string& input, const string& fileOutp
 		fclose(OutFileLenOld);
 	#endif
 
-	delete [] fileLen;
-	fclose(OutFileLen);
+		delete [] fileLen;
+		fclose(OutFileLen);
+	#endif
 	
 	cerr << "Number of sequences reading/writing: " << nSeq << "\n";
 	cerr << "Number of characters reading/writing: " << lengthTexts << "\n";
@@ -338,24 +335,23 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 	    }
 	#endif
 
-	/*
-	ram = ram * nSeq;   //ram used in BCR for vector 
-	#if ( (USE_QS==1) && (FASTQ==1) )
-		SIZEBUFFERcycFiles = ram / lengthRead / 2;    //I have two buffers at the same time
-	#else
-		SIZEBUFFERcycFiles = ram / lengthRead;
-	#endif 
-	
-	if ( SIZEBUFFERcycFiles > nSeq )   //number of columns
+	// Each buffered sequence needs one byte per read position (and another
+	// byte for quality scores).  The former fixed one-million-sequence block
+	// allocated lengthRead MiB even for tiny inputs.  Bound the block by both
+	// the input size and an explicit total-memory budget.
+	dataTypeNChar bytesPerBufferedSequence = lengthRead;
+	#if (USE_QS==1)
+		bytesPerBufferedSequence *= 2;
+	#endif
+	if (bytesPerBufferedSequence == 0) {
+		std::cerr << "TrasposeFasta: empty sequences are not supported" << std::endl;
+		exit (EXIT_FAILURE);
+	}
+	SIZEBUFFERcycFiles = TRANSPOSE_BUFFER_BYTES / bytesPerBufferedSequence;
+	if (SIZEBUFFERcycFiles == 0)
+		SIZEBUFFERcycFiles = 1;
+	if (SIZEBUFFERcycFiles > nSeq)
 		SIZEBUFFERcycFiles = nSeq;
-	else if ( SIZEBUFFERcycFiles < 1048576 )
-		SIZEBUFFERcycFiles = 1048576;
-	//cerr << "Size of buffer in TrasposeFasta.convert: " <<  SIZEBUFFERcycFiles << " bytes" << endl;
-	//char buf[BUFFER_SIZELEN];
-    //for(dataTypeNChar i=0;i<BUFFER_SIZELEN;i++ )
-	//	buf[i] = '\0';
-	*/
-	SIZEBUFFERcycFiles = 1048576;
 	
 	
 	//TO DO: CHECK THE CASE OF charsBuffered >= SIZEBUFFERcycFiles
@@ -370,19 +366,13 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 	vector<vector<uchar> > buf_;
 	buf_.resize(lengthRead);    //For each symbol/column of the read
 	for (dataTypelenSeq x = 0 ; x < lengthRead; x++)         //For each symbol/column of the read
-		buf_[x].resize(SIZEBUFFERcycFiles);
-	for (dataTypelenSeq x = 0 ; x < lengthRead; x++)         //For each symbol/column of the read
-		for (dataTypeNChar y = 0 ; y < SIZEBUFFERcycFiles; y++)         //For each buffered symbol of the read
-			buf_[x][y]=TERMINATE_CHAR_LEN;
+		buf_[x].assign(SIZEBUFFERcycFiles, TERMINATE_CHAR_LEN);
 
 	#if  (USE_QS==1)
 		vector<vector<uchar> > bufQS_;
 		bufQS_.resize(lengthRead);    //For each symbol/column of the read
 		for (dataTypelenSeq x = 0 ; x < lengthRead; x++)         //For each symbol/column of the read
-			bufQS_[x].resize(SIZEBUFFERcycFiles);
-		for (dataTypelenSeq x = 0 ; x < lengthRead; x++)         //For each symbol/column of the read
-			for (dataTypeNChar y = 0 ; y < SIZEBUFFERcycFiles; y++)         //For each buffered symbol of the read
-				bufQS_[x][y]=TERMINATE_CHAR_LEN;
+			bufQS_[x].assign(SIZEBUFFERcycFiles, TERMINATE_CHAR_LEN);
 	#endif
 	
 	nSeq = 0;

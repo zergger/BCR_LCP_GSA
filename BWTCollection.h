@@ -130,7 +130,7 @@ namespace SXSI
 			virtual int storeEGSAoutputFromEntireFiles (string input)= 0;
 		#endif
 		
-		virtual dataTypeNChar rankManySymbolsFilePartial(FILE &, dataTypeNChar *, dataTypeNChar, uchar *)=0;
+		virtual dataTypeNChar rankManySymbolsFilePartial(FILE &, dataTypeNChar *, dataTypeNChar, uchar *, uchar *)=0;
 	    
 		#if KEEP_eBWT_IN_EXT_MEMORY==0
 			virtual void  storeBWTIntMem(uchar const *, dataTypelenSeq) =0;

@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# Local BCR build products and interactive-session files
+/BCR_LCP_GSA
+/removeCycFile
+/build/
+.Rhistory
+__pycache__/
+*.pyc

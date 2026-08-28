@@ -40,7 +40,15 @@
 #include <iostream>
 #include <fstream>
 
-#define SIZEBUFFER 1024     //Size of the buffer for I/O partial ebwt/LCP/DA/SA
+// Large sequential buffers substantially reduce the syscall overhead while
+// partial files are rewritten.  Both values can be overridden with -D.
+#ifndef SIZEBUFFER
+#define SIZEBUFFER (1024UL * 1024UL) //I/O buffer for partial ebwt/LCP/DA/SA
+#endif
+
+#ifndef TRANSPOSE_BUFFER_BYTES
+#define TRANSPOSE_BUFFER_BYTES (128UL * 1024UL * 1024UL)
+#endif
 
 #define ext  ".aux"
 
@@ -222,7 +230,9 @@ typedef unsigned long ulong;
 #define KEEP_eBWT_IN_EXT_MEMORY  1
 
 //Save lengths of each sequence in a file .len
+#ifndef STORE_LENGTH_IN_FILE
 #define STORE_LENGTH_IN_FILE  0
+#endif
 
 //if OUTPUT_FORMAT == 0, the output format of BCR is at most 5 files - built one after the other
 //if OUTPUT_FORMAT == 1, the output format of BCR is as the output of EGSA (.gesa file). BUILD_LCP, BUILD_DA and BUILD_SA must be set to 1. Please, set the types as in eGSA

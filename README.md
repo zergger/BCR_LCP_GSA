@@ -45,7 +45,7 @@ Other features not described here can be set directly in the Parameters.h file.
 
 Default:
 - Build only eBWT string
-- Types: **uchar** for symbol in eBWT, **uint** for the length of the strings, *ulong* for the number of symbols in the input strings (length of the BWT) (see [Wiki](https://github.com/giovannarosone/BCR_LCP_GSA/wiki/Type-setting) for a description of how to change data types for your collection)
+- Types: **uchar** for symbols and sequence lengths (maximum 254 bases with the default build), **uint** for the number of strings, and *ulong* for the number of symbols in the input strings (length of the BWT) (see [Wiki](https://github.com/giovannarosone/BCR_LCP_GSA/wiki/Type-setting) for a description of how to change data types for your collection)
 - Store distinct partial files at the same time: OUTPUT_FORMAT == 3 (see [Wiki](https://github.com/giovannarosone/BCR_LCP_GSA/wiki/Output-format))
   
 For details on the output format, please, see [Wiki](https://github.com/giovannarosone/BCR_LCP_GSA/wiki/Output-format). 
@@ -71,6 +71,31 @@ Open parameters.h file and, please, set the parameters (data structured that mus
 ```sh
 make
 ```
+
+### eBWT-only path for ebwt2InDel
+
+The dedicated target keeps LCP, DA, SA, SAP, and quality-score output disabled. It uses a 1 MiB sequential-I/O buffer and a 128 MiB upper budget for FASTA transposition buffers:
+
+```sh
+make ebwt2indel
+scripts/run_bcr_for_ebwt2indel.sh reads.fa.gz results/reads
+```
+
+The runner auto-detects FASTA or FASTQ content, either plain or gzip-compressed, and accepts nonempty sequences containing uppercase `A`, `C`, `G`, and `T`. The eBWT-only target reads FASTQ sequence lines but intentionally does not retain or permute quality scores; use `make FASTQ=1` for the separate quality-score workflow. With the default sequence-length type, reads may be at most 254 bases. The runner executes BCR in an isolated staging directory, validates the final length, alphabet, and terminator count, and publishes only `results/reads.ebwt` plus small diagnostic/resource logs. It refuses to overwrite an existing output and retains its isolated stage after a failure.
+
+BCR writes `$` (ASCII 36) as its terminator. Pass that value explicitly to ebwt2InDel:
+
+```sh
+ebwt2InDel -1 results/reads.ebwt -o results/reads.snp -t 36
+```
+
+The buffer budgets are compile-time settings and can be adjusted without editing headers:
+
+```sh
+make ebwt2indel IO_BUFFER_BYTES=262144 TRANSPOSE_BUFFER_BYTES=67108864
+```
+
+Set `STORE_LENGTHS=1` only when a downstream workflow needs the per-read `.len` file. ebwt2InDel does not use it.
 
 Alternatively, if you want to build the LCP and/or the DA data structures, you could compile using
 ```sh

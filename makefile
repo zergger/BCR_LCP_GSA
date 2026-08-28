@@ -18,14 +18,26 @@ PRINT = 0 #print in the terminal the BWT along with other data structures (if co
 #if STORE_INDICES_DOLLARS = 1 and PRINT = 1
 # print the index of each end-markers symbol
 
-DEFINES = -DFASTQ=$(FASTQ) -DSAP=$(SAP) -DRLO=$(RLO) -DLCP=$(LCP) -DDA=$(DA) -DSTORE_ENDMARKER_POS=$(STORE_INDICES_DOLLARS) -DprintFinalOutput=$(PRINT)
+IO_BUFFER_BYTES ?= 1048576
+TRANSPOSE_BUFFER_BYTES ?= 134217728
+STORE_LENGTHS ?= 0
+
+DEFINES = -DFASTQ=$(FASTQ) -DSAP=$(SAP) -DRLO=$(RLO) -DLCP=$(LCP) -DDA=$(DA) -DSTORE_ENDMARKER_POS=$(STORE_INDICES_DOLLARS) -DprintFinalOutput=$(PRINT) -DSIZEBUFFER=$(IO_BUFFER_BYTES) -DTRANSPOSE_BUFFER_BYTES=$(TRANSPOSE_BUFFER_BYTES) -DSTORE_LENGTH_IN_FILE=$(STORE_LENGTHS)
 
 CPPFLAGS = -Wall -ansi -pedantic -g -O3 -std=c++11 $(DEFINES)
 
 
 BCR_BWTCollection_obs = BCR_BWTCollection.o BWTCollection.o BCRexternalBWT.o Tools.o Sorting.o TransposeFasta.o Timer.o -lz
+BCR_sources = BCR_BWTCollection.cpp BWTCollection.cpp BCRexternalBWT.cpp Tools.cpp Sorting.cpp TransposeFasta.cpp Timer.cpp
+BCR_ebwt2indel = build/ebwt2indel/BCR_LCP_GSA
+
 BCR_BWTCollection: $(BCR_BWTCollection_obs)
 	$(CC) -o BCR_LCP_GSA $(BCR_BWTCollection_obs)
+
+.PHONY: ebwt2indel
+ebwt2indel:
+	mkdir -p build/ebwt2indel
+	$(CC) $(CPPFLAGS) -o $(BCR_ebwt2indel) $(BCR_sources) -lz
 
 clean:
 	rm -f core *.o *~ BCR_LCP_GSA

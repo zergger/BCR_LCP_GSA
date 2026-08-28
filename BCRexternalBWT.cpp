@@ -232,10 +232,9 @@ BCRexternalBWT::BCRexternalBWT(char *file1, char *fileOutput, string BCRprefPrev
 //In the original definition of the rank, startPos corresponds to the position 1 and endPos corresponds to the previous symbol.
 //Here, we work by using \sigma partial BWTs.
 //toRead is the number of symbols that I have to read before to find the symbol in B corresponding to the symbol in F.
-dataTypeNChar BCRexternalBWT::rankManySymbolsFilePartial(FILE & InFileBWT, dataTypeNChar *counters, dataTypeNChar toRead, uchar *foundSymbol)
+dataTypeNChar BCRexternalBWT::rankManySymbolsFilePartial(FILE & InFileBWT, dataTypeNChar *counters, dataTypeNChar toRead, uchar *foundSymbol, uchar *buffer)
 {
 	dataTypeNChar numchar, cont=0;  //cont is the number of symbols already read!
-	uchar *buffer = new uchar[SIZEBUFFER];
 
 	//it reads toRead symbols from the fp file (Partial BWT)
 	while (toRead > 0) {            //((numchar!=0) && (toRead > 0)) {
@@ -268,8 +267,6 @@ dataTypeNChar BCRexternalBWT::rankManySymbolsFilePartial(FILE & InFileBWT, dataT
 			exit (EXIT_FAILURE);
 		}
 	}
-	delete [] buffer;
-
 	return cont;
 }
 
@@ -1878,6 +1875,7 @@ void BCRexternalBWT::InsertNsymbols(uchar const * newSymb, dataTypelenSeq posSym
 {
 	#if KEEP_eBWT_IN_EXT_MEMORY==1
 		static FILE *InFileBWT;                  // output and input file BWT;
+		uchar *rankBuffer = new uchar[SIZEBUFFER];
 	#endif
 	char *filenameIn = new char[110];
 	char *filename = new char[100];
@@ -1962,7 +1960,7 @@ void BCRexternalBWT::InsertNsymbols(uchar const * newSymb, dataTypelenSeq posSym
 					toRead = vectTriple[k].posN - cont;
 
 					#if KEEP_eBWT_IN_EXT_MEMORY==1
-						numberRead = rankManySymbolsFilePartial(*InFileBWT, counters, toRead, &foundSymbol);						
+						numberRead = rankManySymbolsFilePartial(*InFileBWT, counters, toRead, &foundSymbol, rankBuffer);
 					#else
 						
 						#if verboseEncode==1
@@ -2261,6 +2259,10 @@ void BCRexternalBWT::InsertNsymbols(uchar const * newSymb, dataTypelenSeq posSym
 		#endif
 	#else
 		storeBWTandLCP(newSymb, posSymb);  //Now it also compute the generalized suffix array (position and number of sequence)?
+	#endif
+
+	#if KEEP_eBWT_IN_EXT_MEMORY==1
+		delete [] rankBuffer;
 	#endif
 	
 	#if verboseEncode==1
