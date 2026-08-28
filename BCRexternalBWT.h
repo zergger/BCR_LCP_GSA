@@ -41,6 +41,7 @@
 //2022-10-28
 #include <algorithm>
 #include "Sorting.h"
+#include "CompressedIO.h"
 
 class BCRexternalBWT : public SXSI::BWTCollection {
 public:
@@ -78,7 +79,7 @@ public:
 		dataTypeNChar rankManySymbolsIntMem(dataTypedimAlpha , dataTypeNChar *,  dataTypeNChar, dataTypeNChar , uchar *);
 	#endif
 	
-	dataTypeNChar rankManySymbolsFilePartial(FILE &, dataTypeNChar *, dataTypeNChar, uchar *, uchar *);
+		dataTypeNChar rankManySymbolsFilePartial(BCRPartialFile, dataTypeNChar *, dataTypeNChar, uchar *, uchar *);
 			
 	#if RLO==1
 		void sapSort(std::vector<sortElement> &v, dataTypeNSeq start, dataTypeNSeq end);
@@ -101,16 +102,16 @@ private:
 
 
 	int createFilePartialBWT();
-	FILE * openWriteFilePartialBWT_0();
-	
-	dataTypeNChar writeFilePartial(uchar * , FILE * ) ;
-	FILE * openFilePartialIn( dataTypedimAlpha );
-	FILE * openFilePartialOut(dataTypedimAlpha );
-	int closeFilePartial(FILE * InFile);
-	int renameFilePartial(dataTypedimAlpha );
-	dataTypeNChar readOnFilePartial(uchar *, dataTypeNChar , FILE * );
-	dataTypeNChar writeOnFilePartial(uchar *, dataTypeNChar , FILE * );
-	dataTypeNChar writeSymbolOnFilePartial(uchar , dataTypeNChar , FILE * );
+		BCRPartialFile openWriteFilePartialBWT_0();
+
+		dataTypeNChar writeFilePartial(uchar * , BCRPartialFile ) ;
+		BCRPartialFile openFilePartialIn( dataTypedimAlpha );
+		BCRPartialFile openFilePartialOut(dataTypedimAlpha );
+		int closeFilePartial(BCRPartialFile InFile);
+		int renameFilePartial(dataTypedimAlpha );
+		dataTypeNChar readOnFilePartial(uchar *, dataTypeNChar , BCRPartialFile );
+		dataTypeNChar writeOnFilePartial(uchar *, dataTypeNChar , BCRPartialFile );
+		dataTypeNChar writeSymbolOnFilePartial(uchar , dataTypeNChar , BCRPartialFile );
 };
 
 #endif

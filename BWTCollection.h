@@ -36,6 +36,7 @@
 #include "Tools.h" 
 //#include "Sorting.cpp"
 #include "Sorting.h"
+#include "CompressedIO.h"
 //#include <utility> // Defines std::pair.
 //#include <fstream>
 #include <iostream>
@@ -130,7 +131,7 @@ namespace SXSI
 			virtual int storeEGSAoutputFromEntireFiles (string input)= 0;
 		#endif
 		
-		virtual dataTypeNChar rankManySymbolsFilePartial(FILE &, dataTypeNChar *, dataTypeNChar, uchar *, uchar *)=0;
+			virtual dataTypeNChar rankManySymbolsFilePartial(BCRPartialFile, dataTypeNChar *, dataTypeNChar, uchar *, uchar *)=0;
 	    
 		#if KEEP_eBWT_IN_EXT_MEMORY==0
 			virtual void  storeBWTIntMem(uchar const *, dataTypelenSeq) =0;
@@ -152,15 +153,15 @@ namespace SXSI
 
 
 		virtual int createFilePartialBWT() =0;
-		virtual FILE * openWriteFilePartialBWT_0() =0;
-		virtual dataTypeNChar writeFilePartial(uchar * , FILE *) =0;
-		virtual FILE * openFilePartialIn(dataTypedimAlpha) =0;
-		virtual FILE * openFilePartialOut(dataTypedimAlpha ) =0;
-		virtual int closeFilePartial(FILE * InFile)=0;
-		virtual int renameFilePartial(dataTypedimAlpha currentPile)=0;
-		virtual dataTypeNChar readOnFilePartial(uchar *, dataTypeNChar , FILE * )=0;
-		virtual dataTypeNChar writeOnFilePartial(uchar *, dataTypeNChar , FILE * )=0;
-		virtual dataTypeNChar writeSymbolOnFilePartial(uchar , dataTypeNChar , FILE * )=0;
+			virtual BCRPartialFile openWriteFilePartialBWT_0() =0;
+			virtual dataTypeNChar writeFilePartial(uchar * , BCRPartialFile) =0;
+			virtual BCRPartialFile openFilePartialIn(dataTypedimAlpha) =0;
+			virtual BCRPartialFile openFilePartialOut(dataTypedimAlpha ) =0;
+			virtual int closeFilePartial(BCRPartialFile InFile)=0;
+			virtual int renameFilePartial(dataTypedimAlpha currentPile)=0;
+			virtual dataTypeNChar readOnFilePartial(uchar *, dataTypeNChar , BCRPartialFile)=0;
+			virtual dataTypeNChar writeOnFilePartial(uchar *, dataTypeNChar , BCRPartialFile)=0;
+			virtual dataTypeNChar writeSymbolOnFilePartial(uchar , dataTypeNChar , BCRPartialFile)=0;
 
     protected:
         // Protected constructor; call the static function InitBWTCollection().

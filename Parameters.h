@@ -50,6 +50,18 @@
 #define TRANSPOSE_BUFFER_BYTES (128UL * 1024UL * 1024UL)
 #endif
 
+#ifndef BCR_COMPRESSED_CYC
+#define BCR_COMPRESSED_CYC 0
+#endif
+
+#ifndef BCR_COMPRESSED_PARTIALS
+#define BCR_COMPRESSED_PARTIALS 0
+#endif
+
+#ifndef BCR_FINAL_BWT_FORMATS
+#define BCR_FINAL_BWT_FORMATS 0
+#endif
+
 #define ext  ".aux"
 
 #define SIZE_ALPHA 256  

@@ -43,6 +43,7 @@
 #include <sys/stat.h>
 #include <math.h>
 #include <string.h>    
+#include "BwtFormat.h"
 
 //#include "Sorting.h"
 
@@ -232,14 +233,14 @@ BCRexternalBWT::BCRexternalBWT(char *file1, char *fileOutput, string BCRprefPrev
 //In the original definition of the rank, startPos corresponds to the position 1 and endPos corresponds to the previous symbol.
 //Here, we work by using \sigma partial BWTs.
 //toRead is the number of symbols that I have to read before to find the symbol in B corresponding to the symbol in F.
-dataTypeNChar BCRexternalBWT::rankManySymbolsFilePartial(FILE & InFileBWT, dataTypeNChar *counters, dataTypeNChar toRead, uchar *foundSymbol, uchar *buffer)
+dataTypeNChar BCRexternalBWT::rankManySymbolsFilePartial(BCRPartialFile InFileBWT, dataTypeNChar *counters, dataTypeNChar toRead, uchar *foundSymbol, uchar *buffer)
 {
 	dataTypeNChar numchar, cont=0;  //cont is the number of symbols already read!
 
 	//it reads toRead symbols from the fp file (Partial BWT)
 	while (toRead > 0) {            //((numchar!=0) && (toRead > 0)) {
 		if (toRead <= SIZEBUFFER) {    //Read toRead characters
-			numchar = fread(buffer,sizeof(uchar),toRead,&InFileBWT);
+			numchar = bcrReadPartial(buffer, toRead, InFileBWT);
 			assert(numchar == toRead); // we should always read/write the same number of characters
 			*foundSymbol = buffer[numchar-1];     //The symbol of the sequence k.  It is the symbol in the last position in the partial BWT that we have read.
 
@@ -251,7 +252,7 @@ dataTypeNChar BCRexternalBWT::rankManySymbolsFilePartial(FILE & InFileBWT, dataT
 			//#endif	
 		}
 		else {   //Read sizebuffer characters
-			numchar = fread(buffer,sizeof(uchar),SIZEBUFFER,&InFileBWT);
+			numchar = bcrReadPartial(buffer, SIZEBUFFER, InFileBWT);
 			assert(numchar == SIZEBUFFER); // we should always read/write the same number of characters
 		}
 
@@ -1047,13 +1048,13 @@ int BCRexternalBWT::buildBCR(char const * file1, char const * fileOutput, char c
         std::cerr << "\nFirst symbols: "<< "j= "<< 0 <<" - symbols in position " << (long) lengthRead-1 << "\n";
     #endif
     
-    static FILE *InFileInputText;
+	    BCRCycFile InFileInputText;
 	char *filename = new char[100];
     dataTypeNChar num;
     #if BCR_SET == 0        //Build BCR for 1 sequence
         sprintf (filename, "%s", file1);
         //std::cerr << "The filename is ''" << filename <<"'' file." << std::endl;
-        InFileInputText = fopen(filename, "rb");
+	        InFileInputText = bcrOpenCyc(filename, "rb");
         if (InFileInputText==NULL) {
             std::cerr << filename <<"buildBCR : Error opening " << std::endl;
             exit (EXIT_FAILURE);
@@ -1062,20 +1063,20 @@ int BCRexternalBWT::buildBCR(char const * file1, char const * fileOutput, char c
         #if BCR_INPUT_IN_MEMORY==1      // BCR reads from string
             newSymb[0] = trasp.strInput[lengthRead-1];            //lengthRead does not contain the $.
         #else                             // BCR reads from file
-            num = fread(newSymb,sizeof(uchar),nText,InFileInputText);
+	            num = bcrReadCyc(newSymb, nText, InFileInputText);
             assert( num == nText); // we should always read the same number of characters
         #endif
     #else    //BCR_SET == 1
         sprintf (filename, "%s%u.txt", fileOut, lengthRead-1);
-        InFileInputText = fopen(filename, "rb");
+	        InFileInputText = bcrOpenCyc(filename, "rb");
         if (InFileInputText==NULL) {
             std::cerr << filename <<"buildBCR : Error opening " << std::endl;
             exit (EXIT_FAILURE);
         }
-        num = fread(newSymb,sizeof(uchar),nText,InFileInputText);
+	        num = bcrReadCyc(newSymb, nText, InFileInputText);
         assert( num == nText); // we should always read the same number of characters
         //lengthTot += num;   //Increment the number of chars
-        fclose(InFileInputText);
+	        bcrCloseCyc(InFileInputText);
 		
 		#if (deleteCycFiles == 1)
             if (remove(filename)!=0)
@@ -1150,20 +1151,20 @@ int BCRexternalBWT::buildBCR(char const * file1, char const * fileOutput, char c
 					std::cerr << "--> build---\n"<< "j= "<< (long) lengthRead - t - 1 <<" - symbols in position " << (long) t << "\n";
 				}
 			#else
-				num = fread(newSymb,sizeof(uchar),nText,InFileInputText);
+				num = bcrReadCyc(newSymb, nText, InFileInputText);
 				assert( num == nText); // we should always read the same number of characters
 			#endif
 
         #else
 			sprintf (filename, "%s%u.txt", fileOut, t);
-			InFileInputText = fopen(filename, "rb");
+			InFileInputText = bcrOpenCyc(filename, "rb");
 			if (InFileInputText==NULL) {
 				std::cerr << filename <<" : Error opening " << std::endl;
 				exit (EXIT_FAILURE);
 			}
-			num = fread(newSymb,sizeof(uchar),nText,InFileInputText);
+			num = bcrReadCyc(newSymb, nText, InFileInputText);
 			assert( num == nText);
-			fclose(InFileInputText);
+			bcrCloseCyc(InFileInputText);
 			
 			#if (deleteCycFiles == 1)
 				if (remove(filename)!=0)
@@ -1235,21 +1236,21 @@ int BCRexternalBWT::buildBCR(char const * file1, char const * fileOutput, char c
 		#if BCR_INPUT_IN_MEMORY==1  	// BCR reads from string
 			newSymb[0] = trasp.strInput[0];			//t does not contain the $.
 		#else
-			num = fread(newSymb,sizeof(uchar),nText,InFileInputText);
+			num = bcrReadCyc(newSymb, nText, InFileInputText);
 			assert( num == nText); // we should always read the same number of characters
 			//std::cerr << "The read symbol is: " << newSymb[0] << ".\n";
-			fclose(InFileInputText);
+				bcrCloseCyc(InFileInputText);
 		#endif
 	#else
 		sprintf (filename, "%s%u.txt", fileOut, 0);
-		InFileInputText = fopen(filename, "rb");
+		InFileInputText = bcrOpenCyc(filename, "rb");
 		if (InFileInputText==NULL) {
 				std::cerr << filename <<" : Error opening " << std::endl;
 				exit (EXIT_FAILURE);
 		}
-		num = fread(newSymb,sizeof(uchar),nText,InFileInputText);
+		num = bcrReadCyc(newSymb, nText, InFileInputText);
 		assert( num == nText); // we should always read the same number of characters
-		fclose(InFileInputText);
+		bcrCloseCyc(InFileInputText);
 		
 		#if (deleteCycFiles == 1)
 			if (remove(filename)!=0)
@@ -1600,7 +1601,7 @@ void BCRexternalBWT::InsertFirstsymbols(uchar * newSymb)
 	//We don't store TERMINATE_CHAR_LEN symbol (the strings can have different length)
 	//dataTypeNChar num = fwrite (newSymb, sizeof(uchar), nExamedTexts , OutFileBWT);
 	#if KEEP_eBWT_IN_EXT_MEMORY==1
-        FILE *OutFileBWT;
+	        BCRPartialFile OutFileBWT;
         #if BUILD_BCR_FROM_BCRpartials == 1
             sprintf (filenameOut, "new_bwt_%d%s", 0,ext);
             OutFileBWT = openFilePartialOut(0); //new_bwt_0 in append mode
@@ -1611,12 +1612,12 @@ void BCRexternalBWT::InsertFirstsymbols(uchar * newSymb)
         #endif
     
 		//dataTypeNChar num = writeFilePartial(newSymb, OutFileBWT);
-        dataTypeNChar num = fwrite (newSymb, sizeof(uchar), nExamedTexts , OutFileBWT);
+	        dataTypeNChar num = bcrWritePartial(newSymb, nExamedTexts, OutFileBWT);
 		assert( num == nExamedTexts); 
 		//new_bwt0 only contains the symbols of the new collection
         #if (BUILD_BCR_FROM_BCRpartials == 1)
             //Now we have to add the symbols of the previous BCR files
-            FILE *InFileBWT = openFilePartialIn (0);  // Open "bwt_0
+	            BCRPartialFile InFileBWT = openFilePartialIn (0);  // Open "bwt_0
     
             uchar *buffer = new uchar[SIZEBUFFER];
             dataTypeNChar numchar=0, numcharWrite=0;
@@ -1874,7 +1875,7 @@ void BCRexternalBWT::InsertFirstsymbols(uchar * newSymb)
 void BCRexternalBWT::InsertNsymbols(uchar const * newSymb, dataTypelenSeq posSymb)
 {
 	#if KEEP_eBWT_IN_EXT_MEMORY==1
-		static FILE *InFileBWT;                  // output and input file BWT;
+			BCRPartialFile InFileBWT;                  // input partial BWT;
 		uchar *rankBuffer = new uchar[SIZEBUFFER];
 	#endif
 	char *filenameIn = new char[110];
@@ -1960,7 +1961,7 @@ void BCRexternalBWT::InsertNsymbols(uchar const * newSymb, dataTypelenSeq posSym
 					toRead = vectTriple[k].posN - cont;
 
 					#if KEEP_eBWT_IN_EXT_MEMORY==1
-						numberRead = rankManySymbolsFilePartial(*InFileBWT, counters, toRead, &foundSymbol, rankBuffer);
+						numberRead = rankManySymbolsFilePartial(InFileBWT, counters, toRead, &foundSymbol, rankBuffer);
 					#else
 						
 						#if verboseEncode==1
@@ -2325,7 +2326,7 @@ void BCRexternalBWT::storeBWTFilePartial(uchar const * newSymb, dataTypelenSeq p
 	//Now I have to update the BWT in each file.
 	
 	#if KEEP_eBWT_IN_EXT_MEMORY==1
-		static FILE *OutFileBWT, *InFileBWT;                  // output and input file BWT;
+			BCRPartialFile OutFileBWT, InFileBWT;                  // output and input partial BWT;
 		char *filenameOut = new char[120];
 		char *filenameIn = new char[110];
 		char *filename = new char[100];
@@ -2392,7 +2393,7 @@ void BCRexternalBWT::storeBWTFilePartial(uchar const * newSymb, dataTypelenSeq p
 
 			InFileBWT = openFilePartialIn (currentPile);
 			numchar=sprintf (filenameOut,"new_%s%s",filename,ext);
-			OutFileBWT = fopen(filenameOut, "wb");
+			OutFileBWT = bcrOpenPartial(filenameOut, "wb");
 			if (OutFileBWT==NULL) {
 					std::cerr << "storeBWTFilePartial: Out BWT file, j= " << (unsigned int)j <<": Error opening " << std::endl;
 					exit (EXIT_FAILURE);
@@ -4283,7 +4284,7 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 	//dataTypeNChar numcharWrite=0;
 	
 	#if KEEP_eBWT_IN_EXT_MEMORY == 1
-		static FILE  *InFileBWT;                  // input file BWT;
+			BCRPartialFile InFileBWT;                  // input partial BWT;
 		uchar *bufferBWT = new uchar[SIZEBUFFER];
 	#else
 		dataTypeNChar  numberBWTwritten=0;
@@ -4373,17 +4374,24 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 		
 		#if ( (OUTPUT_FORMAT == 3) || ( (OUTPUT_FORMAT == 5) || (OUTPUT_FORMAT == 6) ) )
 			char *fnBWT = new char[strlen(fn)+100];
-			static FILE *OutFileBWT; 
-			//#if (BUILD_SAP == 0)
-				sprintf (fnBWT,"%s%s",fn,".ebwt");
-			//#else
-			//	sprintf (fnBWT,"%s%s",fn,".rlobwt");
-			//#endif
-			OutFileBWT = fopen(fnBWT, "wb");
-			if (OutFileBWT==NULL) {
-				std::cerr << "storeEGSAcomplete: Error opening " << std::endl;
-				exit (EXIT_FAILURE);
-			}
+			#if BCR_FINAL_BWT_FORMATS
+				bwt_format::Encoding outputBwtEncoding = bwt_format::parseEncoding(getenv("BCR_BWT_FORMAT"));
+				sprintf(fnBWT, "%s%s", fn, bwt_format::suffix(outputBwtEncoding));
+				bwt_format::Writer *OutFileBWT = new bwt_format::Writer(
+					fnBWT, outputBwtEncoding, static_cast<unsigned char>(TERMINATE_CHAR));
+				std::cerr << "BWT output format: "
+					<< (outputBwtEncoding == bwt_format::RLE ? "rle" :
+						(outputBwtEncoding == bwt_format::PACKED ? "packed" : "plain"))
+					<< " (" << fnBWT << ")\n";
+			#else
+				FILE *OutFileBWT;
+				sprintf(fnBWT, "%s%s", fn, ".ebwt");
+				OutFileBWT = fopen(fnBWT, "wb");
+				if (OutFileBWT==NULL) {
+					std::cerr << "storeEGSAcomplete: Error opening " << std::endl;
+					exit (EXIT_FAILURE);
+				}
+			#endif
 		#endif 
 		
 		#if ( (BUILD_LCP == 1) && ( (OUTPUT_FORMAT == 3) || (OUTPUT_FORMAT == 4) || (OUTPUT_FORMAT == 6) ) )
@@ -4455,7 +4463,7 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 		#if KEEP_eBWT_IN_EXT_MEMORY == 1
 			sprintf (filename, "bwt_%d", g);
 			sprintf (filenameIn,"%s%s",filename,ext);
-			InFileBWT = fopen(filenameIn, "rb");
+				InFileBWT = bcrOpenPartial(filenameIn, "rb");
 			if (InFileBWT==NULL) {
 				std::cerr << "storeEGSAcomplete: BWT file " << (unsigned int)g <<": Error opening " << std::endl;
 				exit (EXIT_FAILURE);
@@ -4521,7 +4529,7 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 					&& (!feof(InFilePairSA))
 				#endif
 				#if KEEP_eBWT_IN_EXT_MEMORY == 1
-					&& (!feof(InFileBWT))
+						&& (!bcrPartialEof(InFileBWT))
 				#endif
 			#endif
 
@@ -4531,18 +4539,18 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 					&& (!feof(InFilePairSA))
 				#endif
 				#if KEEP_eBWT_IN_EXT_MEMORY == 1
-					&& (!feof(InFileBWT))
+					&& (!bcrPartialEof(InFileBWT))
 				#endif
 			#endif
 
 			#if BUILD_LCP == 0 && BUILD_DA == 0 && BUILD_SA == 1
 				(!feof(InFilePairSA))
 				#if KEEP_eBWT_IN_EXT_MEMORY == 1
-					&& (!feof(InFileBWT))
+					&& (!bcrPartialEof(InFileBWT))
 				#endif
 			#endif
 			#if BUILD_LCP == 0 && BUILD_DA == 0 && BUILD_SA == 0 && KEEP_eBWT_IN_EXT_MEMORY == 1
-				(!feof(InFileBWT))
+					(!bcrPartialEof(InFileBWT))
 			#endif
 		)  {
 		
@@ -4553,7 +4561,7 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 				#endif
 		
 				#if KEEP_eBWT_IN_EXT_MEMORY == 1
-					numcharRead = fread(bufferBWT,sizeof(uchar),SIZEBUFFER,InFileBWT);
+						numcharRead = bcrReadPartial(bufferBWT, SIZEBUFFER, InFileBWT);
 				#endif
 								
 				#if BUILD_DA == 1
@@ -4624,7 +4632,11 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 						
 						#if ( (OUTPUT_FORMAT == 3) || ( (OUTPUT_FORMAT == 5) || (OUTPUT_FORMAT == 6) ) )
 							#if KEEP_eBWT_IN_EXT_MEMORY == 1
-								fwrite (bufferBWT, sizeof(uchar), numcharRead , OutFileBWT);
+								#if BCR_FINAL_BWT_FORMATS
+									OutFileBWT->write(bufferBWT, numcharRead);
+								#else
+									fwrite (bufferBWT, sizeof(uchar), numcharRead , OutFileBWT);
+								#endif
 							#else
 								for (dataTypeNChar i=0; i < numcharRead; i++) {
 									fwrite (&vectVectBWT[g][eleCurrentPile], sizeof(uchar), 1 , OutFileBWT);								
@@ -4692,7 +4704,7 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 		#endif
 		
 		#if KEEP_eBWT_IN_EXT_MEMORY == 1
-			fclose(InFileBWT);			
+				bcrClosePartial(InFileBWT);
 		#endif
 	
 			
@@ -4781,7 +4793,13 @@ int BCRexternalBWT::storeEGSAcomplete( const char* fn ) {
 	#endif
 
 	#if ( (OUTPUT_FORMAT == 3) || ( (OUTPUT_FORMAT == 5) || (OUTPUT_FORMAT == 6) ) )
-			fclose(OutFileBWT); 
+			#if BCR_FINAL_BWT_FORMATS
+				OutFileBWT->close();
+				delete OutFileBWT;
+			#else
+				fclose(OutFileBWT);
+			#endif
+			delete [] fnBWT;
 	#endif
 
 	#if (OUTPUT_FORMAT == 4)
@@ -4930,7 +4948,8 @@ int BCRexternalBWT::storeEGSAoutputFromEntireFiles (string input) {
 	
 void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 
-	static FILE *OutFileBWT, *InFileBWT;                  // output and input file BWT;
+	FILE *OutFileBWT;
+	BCRPartialFile InFileBWT;
 	char *filenameIn = new char[strlen(fn)+100];
 	char *filename = new char[strlen(fn)+100];
 	
@@ -4974,7 +4993,7 @@ void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 	for (dataTypedimAlpha g = 0 ; g < sizeAlpha; g++) {
 		numchar=sprintf (filename, "bwt_%d", g);
 		numchar=sprintf (filenameIn,"%s%s",filename,ext);
-		InFileBWT = fopen(filenameIn, "rb");
+		InFileBWT = bcrOpenPartial(filenameIn, "rb");
 		if (InFileBWT==NULL) {
 			std::cerr << "storeEntireBWTFilePartial: BWT file " << (unsigned int)g <<": Error opening " << std::endl;
 			exit (EXIT_FAILURE);
@@ -4991,7 +5010,7 @@ void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 		#endif
 
 		//std::cerr << "BWT file " << (unsigned int)g << "= ";
-		numchar = fread(buffer,sizeof(uchar),SIZEBUFFER,InFileBWT);
+		numchar = bcrReadPartial(buffer, SIZEBUFFER, InFileBWT);
 		numcharWrite = fwrite (buffer, sizeof(uchar), numchar , OutFileBWT);
 		//std::cerr << "numchar= " << numchar << std::endl;
 		//std::cerr << "numcharWrite= " << numcharWrite << std::endl;
@@ -5007,7 +5026,7 @@ void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 		#endif
 
 		while (numchar!=0) {
-			numchar = fread(buffer,sizeof(uchar),SIZEBUFFER,InFileBWT);
+			numchar = bcrReadPartial(buffer, SIZEBUFFER, InFileBWT);
 			numcharWrite = fwrite (buffer, sizeof(uchar), numchar , OutFileBWT);
 			assert(numchar == numcharWrite); // we should always read/write the same number of characters
 
@@ -5022,7 +5041,7 @@ void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 
 		}
 
-		fclose(InFileBWT);		
+		bcrClosePartial(InFileBWT);
 		#if USE_QS==1
 			fclose(InFileBWTQS);
 		#endif
@@ -5068,8 +5087,7 @@ void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 	for (dataTypedimAlpha g = 0 ; g < SIZE_ALPHA-1; g++) {
 		if (freqOut[g] > 0){
 			InFileBWT = openFilePartialIn(alpha[(unsigned int)g]);
-			fseek(InFileBWT,0,SEEK_END);
-			dataTypeNChar lengthBWTPartial=ftell(InFileBWT);
+			dataTypeNChar lengthBWTPartial=bcrPartialDecodedSize(InFileBWT);
 			if (freqOut[g] == lengthBWTPartial)
 				std::cerr << (unsigned int)g << " freq: " << freqOut[g] << "\n";
 			else {
@@ -5096,8 +5114,7 @@ void BCRexternalBWT::storeEntireBWTFilePartial( const char* fn ) {
 	}
 	if (freqOut[(SIZE_ALPHA-1)] > 0){
 		InFileBWT = openFilePartialIn(alpha[(unsigned int)(SIZE_ALPHA-1)]);
-		fseek(InFileBWT,0,SEEK_END);
-		dataTypeNChar lengthBWTPartial=ftell(InFileBWT);
+		dataTypeNChar lengthBWTPartial=bcrPartialDecodedSize(InFileBWT);
 		if (freqOut[(SIZE_ALPHA-1)] == lengthBWTPartial)
 			std::cerr << (unsigned int)(SIZE_ALPHA-1) << " freq: " << freqOut[(SIZE_ALPHA-1)] << "\n";
 		else {
@@ -5426,7 +5443,7 @@ void BCRexternalBWT::storeEntirePairSA( const char* fn ) {
 
 #if KEEP_eBWT_IN_EXT_MEMORY==0
 void BCRexternalBWT::storeEntireBWTIntMem( const char* fn ) {
-	static FILE *OutFileBWT;                  // output and input file BWT;
+	BCRPartialFile OutFileBWT;                  // output partial BWT;
 	dataTypeNChar numcharWrite;
 
 	dataTypeNChar *freqOut = new dataTypeNChar [SIZE_ALPHA];
@@ -6368,19 +6385,19 @@ dataTypeNChar BCRexternalBWT::readPreviousBCR(string filenameBCRprefPrev)
 
 int BCRexternalBWT::createFilePartialBWT() {
 	//Creates one file (partial BWT) for each letter in the alphabet. From 1 to sizeAlpha-1
-	static FILE *OutFileBWT;                  // output and input file BWT;
+	BCRPartialFile OutFileBWT;                  // output partial BWT;
 	char *filenameOut = new char[120];
 	char *filename1 = new char[100];
 	for (dataTypedimAlpha i = 0; i < sizeAlpha; i++) {
 		sprintf (filename1, "bwt_%d", i);
 		sprintf (filenameOut,"%s%s",filename1,ext);
 
-		OutFileBWT = fopen(filenameOut, "wb");
+		OutFileBWT = bcrOpenPartial(filenameOut, "wb");
 		if (OutFileBWT==NULL) {
 			std::cerr << "BWT file " << (unsigned int)i <<" : Error opening " << std::endl;
 			exit (EXIT_FAILURE);
 		}
-		fclose(OutFileBWT);
+		bcrClosePartial(OutFileBWT);
 	}
 	delete [] filename1;
 	delete [] filenameOut;
@@ -6392,15 +6409,15 @@ int BCRexternalBWT::createFilePartialBWT() {
 }
 
 
-FILE * BCRexternalBWT::openWriteFilePartialBWT_0( ) {
-	static FILE *OutFileBWT;                  // output and input file BWT;
+BCRPartialFile BCRexternalBWT::openWriteFilePartialBWT_0( ) {
+	BCRPartialFile OutFileBWT;                  // output partial BWT;
 	char *filenameOut = new char[120];
 	char *filename = new char[100];
 
 	sprintf (filename, "bwt_%d",0);
 	sprintf (filenameOut,"%s%s",filename,ext);
 
-	OutFileBWT = fopen(filenameOut, "wb");
+	OutFileBWT = bcrOpenPartial(filenameOut, "wb");
 	if (OutFileBWT==NULL) {
 		std::cerr << "BWT file $: Error opening: " << filenameOut << std::endl;
 		exit (EXIT_FAILURE);
@@ -6412,20 +6429,20 @@ FILE * BCRexternalBWT::openWriteFilePartialBWT_0( ) {
 }
 
 
-dataTypeNChar BCRexternalBWT::writeFilePartial(uchar * newSymb, FILE * OutFile) {
-	dataTypeNChar num = fwrite (newSymb, sizeof(uchar), nExamedTexts , OutFile);
+dataTypeNChar BCRexternalBWT::writeFilePartial(uchar * newSymb, BCRPartialFile OutFile) {
+	dataTypeNChar num = bcrWritePartial(newSymb, nExamedTexts, OutFile);
 	return num;
 }
 
 
 
-FILE * BCRexternalBWT::openFilePartialIn(dataTypedimAlpha currentPile) {
-	static FILE *inFile;
+BCRPartialFile BCRexternalBWT::openFilePartialIn(dataTypedimAlpha currentPile) {
+	BCRPartialFile inFile;
 	char *filenameIn = new char[120];
 	char *filename = new char[100];
 	sprintf (filename, "bwt_%d", currentPile);
 	sprintf (filenameIn,"%s%s",filename,ext);
-	inFile = fopen(filenameIn, "rb");
+	inFile = bcrOpenPartial(filenameIn, "rb");
 	if (inFile==NULL) {
 		std::cerr << "openFilePartialIn: file currentPile=" << (unsigned int)currentPile << ": Error opening: " << filenameIn << std::endl;
 		exit (EXIT_FAILURE);
@@ -6436,19 +6453,19 @@ FILE * BCRexternalBWT::openFilePartialIn(dataTypedimAlpha currentPile) {
 }
 
 
-int BCRexternalBWT::closeFilePartial(FILE * pFile) {
-	fclose(pFile);
+int BCRexternalBWT::closeFilePartial(BCRPartialFile pFile) {
+	bcrClosePartial(pFile);
 	return 1;
 }
 
 
-FILE * BCRexternalBWT::openFilePartialOut(dataTypedimAlpha currentPile) {
-	static FILE *outFile;
+BCRPartialFile BCRexternalBWT::openFilePartialOut(dataTypedimAlpha currentPile) {
+	BCRPartialFile outFile;
 	char *filenameOut = new char[120];
 	char *filename = new char[100];
 	sprintf (filename, "new_bwt_%d", currentPile);
 	sprintf (filenameOut,"%s%s",filename,ext);
-	outFile = fopen(filenameOut, "ab");
+	outFile = bcrOpenPartial(filenameOut, "ab");
 	if (outFile==NULL) {
 		std::cerr << "openFilePartialOut: file currentPile= " << (unsigned int)currentPile << ": Error opening: " << filenameOut << std::endl;
 		exit (EXIT_FAILURE);
@@ -6481,26 +6498,26 @@ int BCRexternalBWT::renameFilePartial(dataTypedimAlpha currentPile) {
 }
 
 
- dataTypeNChar BCRexternalBWT::readOnFilePartial(uchar *buffer, dataTypeNChar toRead, FILE * InFileBWT) {
+ dataTypeNChar BCRexternalBWT::readOnFilePartial(uchar *buffer, dataTypeNChar toRead, BCRPartialFile InFileBWT) {
 	dataTypeNChar numchar;
 	//if (InFileBWT==NULL) {
 	//		std::cerr << "readOnFile: file" << std::endl;
     // 			exit (EXIT_FAILURE);
 	//	}
-	numchar = fread(buffer,sizeof(uchar),toRead,InFileBWT);
+	numchar = bcrReadPartial(buffer, toRead, InFileBWT);
 
 	return numchar;
 }
 
- dataTypeNChar BCRexternalBWT::writeOnFilePartial(uchar *buffer, dataTypeNChar numchar, FILE * OutFileBWT) {
+ dataTypeNChar BCRexternalBWT::writeOnFilePartial(uchar *buffer, dataTypeNChar numchar, BCRPartialFile OutFileBWT) {
 	dataTypeNChar numcharWrite;
-	numcharWrite = fwrite (buffer, sizeof(uchar), numchar , OutFileBWT);
+	numcharWrite = bcrWritePartial(buffer, numchar, OutFileBWT);
 	return numcharWrite;
 }
 
-dataTypeNChar BCRexternalBWT::writeSymbolOnFilePartial(uchar symbol, dataTypeNChar numchar, FILE * OutFileBWT) {
+dataTypeNChar BCRexternalBWT::writeSymbolOnFilePartial(uchar symbol, dataTypeNChar numchar, BCRPartialFile OutFileBWT) {
 	dataTypeNChar numcharWrite;
-	numcharWrite = fwrite (&symbol, sizeof(uchar), numchar , OutFileBWT);
+	numcharWrite = bcrWritePartial(&symbol, numchar, OutFileBWT);
 	return numcharWrite;
 }
 

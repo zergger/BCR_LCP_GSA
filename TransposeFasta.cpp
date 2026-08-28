@@ -30,6 +30,7 @@
  **/
  
 #include "TransposeFasta.h"
+#include "CompressedIO.h"
 #include "Tools.h"
 #include "Parameters.h"
 #include <assert.h>
@@ -303,19 +304,19 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 	//}
 	
 
-	vector <FILE*> outputFiles_;
+	vector <BCRCycFile> outputFiles_;
 	outputFiles_.resize(lengthRead);    //One for each symbol of the read.
     // create output files   (cyc files)
     for(dataTypelenSeq i=0;i<lengthRead;i++ )
     {
         std::stringstream fn;
         fn << output <<  (int)i << ".txt";
-        outputFiles_[i] = fopen( fn.str().c_str(),"w" );
+	        outputFiles_[i] = bcrOpenCyc(fn.str().c_str(), "wb");
         if (outputFiles_[i] == NULL) {
                 std::cerr << "TrasposeFasta: could not open file "  <<  fn.str().c_str() << std::endl;
 								exit (EXIT_FAILURE);
 				}
-        fclose(outputFiles_[i]);
+	        bcrCloseCyc(outputFiles_[i]);
     }
 
 	#if  (USE_QS==1) 
@@ -404,8 +405,8 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 				for(dataTypelenSeq i=0;i<lengthRead;i++ )  {       //For each symbol/column of the read   (for each string)
 					std::stringstream fn;
 					fn << output <<  (int)i << ".txt";
-					outputFiles_[i] = fopen( fn.str().c_str(),"a" );
-					num_write = fwrite ( &buf_[i][0],sizeof(char),charsBuffered-1,outputFiles_[i] );
+					outputFiles_[i] = bcrOpenCyc(fn.str().c_str(), "ab");
+					num_write = bcrWriteCyc(&buf_[i][0], charsBuffered-1, outputFiles_[i]);
 					assert( num_write == charsBuffered-1 );
 					for(dataTypeNChar x=0; x<charsBuffered-1; x++ ) {
 						//For each buffered symbol of the read (a symbol for each string)
@@ -414,7 +415,7 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 							buf_[i][x] = TERMINATE_CHAR_LEN;
 						}
 					}
-					fclose(outputFiles_[i]);
+					bcrCloseCyc(outputFiles_[i]);
 				}
 				
 				charsBuffered=1;
@@ -476,8 +477,8 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 	//        num_write = fwrite ( buf_[i],sizeof(uchar),charsBuffered,outputFiles_[i] );
 			std::stringstream fn;
 			fn << output <<  (int)i << ".txt";
-			outputFiles_[i] = fopen( fn.str().c_str(),"a" );
-			num_write = fwrite ( &buf_[i][0],sizeof(char),charsBuffered,outputFiles_[i] );
+			outputFiles_[i] = bcrOpenCyc(fn.str().c_str(), "ab");
+			num_write = bcrWriteCyc(&buf_[i][0], charsBuffered, outputFiles_[i]);
 			assert( num_write == charsBuffered );
 			for(dataTypeNChar x=0; x<charsBuffered; x++ ) {
 				if (buf_[i][x] != TERMINATE_CHAR_LEN) {
@@ -486,7 +487,7 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 				}
 				//cerr << "Number of characters reading/writing: " << (int) lengthTexts << "\n";
 			}
-			fclose( outputFiles_[i]);
+			bcrCloseCyc(outputFiles_[i]);
 		}
 		
 	#else    //KSEQ_PARSER==1
@@ -514,8 +515,8 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 				for(dataTypelenSeq i=0;i<lengthRead;i++ )  {       //For each symbol/column of the read   (for each string)
 					std::stringstream fn;
 					fn << output <<  (int)i << ".txt";
-					outputFiles_[i] = fopen( fn.str().c_str(),"a" );
-					num_write = fwrite ( &buf_[i][0],sizeof(char),charsBuffered-1,outputFiles_[i] );
+					outputFiles_[i] = bcrOpenCyc(fn.str().c_str(), "ab");
+					num_write = bcrWriteCyc(&buf_[i][0], charsBuffered-1, outputFiles_[i]);
 					assert( num_write == charsBuffered-1 );
 					for(dataTypeNChar x=0; x<charsBuffered-1; x++ ) {
 						//For each buffered symbol of the read (a symbol for each string)
@@ -525,7 +526,7 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 							buf_[i][x] = TERMINATE_CHAR_LEN;							
 						}
 					}
-					fclose(outputFiles_[i]);
+					bcrCloseCyc(outputFiles_[i]);
 				}
 				
 				#if  (USE_QS==1)
@@ -616,8 +617,8 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 		{
 			std::stringstream fn;
 			fn << output <<  (int)i << ".txt";
-			outputFiles_[i] = fopen( fn.str().c_str(),"a" );
-			num_write = fwrite ( &buf_[i][0],sizeof(char),charsBuffered,outputFiles_[i] );
+			outputFiles_[i] = bcrOpenCyc(fn.str().c_str(), "ab");
+			num_write = bcrWriteCyc(&buf_[i][0], charsBuffered, outputFiles_[i]);
 			assert( num_write == charsBuffered );
 			
 			for(dataTypeNChar x=0; x<charsBuffered; x++ ) {
@@ -627,7 +628,7 @@ bool TransposeFasta::convert( const string& input, char const * fileOutput, cons
 					buf_[i][x] = TERMINATE_CHAR_LEN;
 				}
 			}
-			fclose( outputFiles_[i]);
+			bcrCloseCyc(outputFiles_[i]);
 		}
 		
 		#if USE_QS==1

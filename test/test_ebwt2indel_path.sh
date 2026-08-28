@@ -26,27 +26,61 @@ expect_failure() {
 }
 
 "$runner" "$fixture" "$work_dir/valid"
-python3 "$validator" --input "$fixture" --ebwt "$work_dir/valid.ebwt" \
+python3 "$validator" --input "$fixture" --ebwt "$work_dir/valid.rl_bwt" \
     --terminator '$' --verify-read-multiset
-actual_sha256=$(sha256sum "$work_dir/valid.ebwt" | awk '{print $1}')
+"$runner" "$fixture" "$work_dir/plain" plain
+"$runner" "$fixture" "$work_dir/packed" packed
+python3 "$validator" --input "$fixture" --ebwt "$work_dir/packed.pck_bwt" \
+    --terminator '$' --verify-read-multiset
+actual_sha256=$(sha256sum "$work_dir/plain.ebwt" | awk '{print $1}')
 if [[ "$actual_sha256" != "$expected_sha256" ]]; then
     echo "Unexpected eBWT SHA-256: $actual_sha256" >&2
     exit 1
 fi
 test ! -e "$work_dir/valid.len"
 test ! -e "$work_dir/valid.info"
+awk -F '\t' '$1 == "peak" { found = 1; if ($2 <= 0) exit 1 } END { if (!found) exit 1 }' \
+    "$work_dir/valid.bcr.space.tsv"
+
+PYTHONPATH="$repo_dir/scripts" python3 - "$work_dir" <<'PY'
+from pathlib import Path
+import sys
+from bwt_format import read_all
+
+root = Path(sys.argv[1])
+plain = read_all(root / "plain.ebwt", "$", 16 * 1024 * 1024)
+assert read_all(root / "valid.rl_bwt", "$", 16 * 1024 * 1024) == plain
+assert read_all(root / "packed.pck_bwt", "$", 16 * 1024 * 1024) == plain
+
+rle = bytearray((root / "valid.rl_bwt").read_bytes())
+(root / "truncated.rl_bwt").write_bytes(rle[:-1])
+rle[24] ^= 1
+(root / "bad_checksum.rl_bwt").write_bytes(rle)
+
+packed = bytearray((root / "packed.pck_bwt").read_bytes())
+packed[32] = (packed[32] & 0xF8) | 0x07
+(root / "bad_symbol.pck_bwt").write_bytes(packed)
+PY
+
+expect_failure truncated_rle \
+    python3 "$validator" --input "$fixture" --ebwt "$work_dir/truncated.rl_bwt" --terminator '$'
+expect_failure bad_checksum \
+    python3 "$validator" --input "$fixture" --ebwt "$work_dir/bad_checksum.rl_bwt" --terminator '$'
+expect_failure bad_packed_symbol \
+    python3 "$validator" --input "$fixture" --ebwt "$work_dir/bad_symbol.pck_bwt" --terminator '$'
 
 "$runner" "$fastq_fixture" "$work_dir/fastq"
-python3 "$validator" --input "$fastq_fixture" --ebwt "$work_dir/fastq.ebwt" \
+"$runner" "$fastq_fixture" "$work_dir/fastq_plain" plain
+python3 "$validator" --input "$fastq_fixture" --ebwt "$work_dir/fastq.rl_bwt" \
     --terminator '$' --verify-read-multiset
-actual_fastq_sha256=$(sha256sum "$work_dir/fastq.ebwt" | awk '{print $1}')
+actual_fastq_sha256=$(sha256sum "$work_dir/fastq_plain.ebwt" | awk '{print $1}')
 if [[ "$actual_fastq_sha256" != "$expected_fastq_sha256" ]]; then
     echo "Unexpected FASTQ eBWT SHA-256: $actual_fastq_sha256" >&2
     exit 1
 fi
 
 expect_failure wrong_terminator \
-    python3 "$validator" --input "$fixture" --ebwt "$work_dir/valid.ebwt" --terminator '#'
+    python3 "$validator" --input "$fixture" --ebwt "$work_dir/valid.rl_bwt" --terminator '#'
 expect_failure overwrite "$runner" "$fixture" "$work_dir/valid"
 
 printf '>invalid_n\nACNT\n' >"$work_dir/invalid_n.fa"
@@ -77,8 +111,59 @@ printf '\n' >>"$work_dir/max_length.fa"
 "$runner" "$work_dir/max_length.fa" "$work_dir/max_length"
 
 if [[ -n "${EBWT2INDEL_BIN:-}" ]]; then
-    "$EBWT2INDEL_BIN" -1 "$work_dir/valid.ebwt" -o "$work_dir/valid.snp" -t 36 \
-        >"$work_dir/ebwt2indel.log" 2>&1
+    "$EBWT2INDEL_BIN" -1 "$work_dir/plain.ebwt" -o "$work_dir/plain.snp" -t 36 \
+        >"$work_dir/ebwt2indel_plain.log" 2>&1
+    "$EBWT2INDEL_BIN" -1 "$work_dir/valid.rl_bwt" -o "$work_dir/rle.snp" -t 36 \
+        >"$work_dir/ebwt2indel_rle.log" 2>&1
+    "$EBWT2INDEL_BIN" -1 "$work_dir/packed.pck_bwt" -o "$work_dir/packed.snp" -t 36 \
+        >"$work_dir/ebwt2indel_packed.log" 2>&1
+    cmp "$work_dir/plain.snp" "$work_dir/rle.snp"
+    cmp "$work_dir/plain.snp" "$work_dir/packed.snp"
+    expect_failure ebwt2indel_truncated "$EBWT2INDEL_BIN" \
+        -1 "$work_dir/truncated.rl_bwt" -o "$work_dir/truncated.snp" -t 36
+    expect_failure ebwt2indel_checksum "$EBWT2INDEL_BIN" \
+        -1 "$work_dir/bad_checksum.rl_bwt" -o "$work_dir/bad_checksum.snp" -t 36
+    expect_failure ebwt2indel_bad_symbol "$EBWT2INDEL_BIN" \
+        -1 "$work_dir/bad_symbol.pck_bwt" -o "$work_dir/bad_symbol.snp" -t 36
+
+    python3 "$repo_dir/test/generate_variant_fixture.py" \
+        --output-dir "$work_dir/variant_fixture"
+    truth="$work_dir/variant_fixture/truth.tsv"
+    test "$(awk -F '\t' 'NR > 1 && $2 == "snp" { n++ } END { print n + 0 }' "$truth")" -eq 1
+    test "$(awk -F '\t' 'NR > 1 && $2 == "ins" { n++ } END { print n + 0 }' "$truth")" -eq 4
+    test "$(awk -F '\t' 'NR > 1 && $2 == "del" { n++ } END { print n + 0 }' "$truth")" -eq 4
+    test "$(awk -F '\t' 'NR > 1 { seen[$4] = 1 } END { print length(seen) }' "$truth")" -eq 3
+    test "$(awk -F '\t' 'NR > 1 { seen[$5] = 1 } END { print length(seen) }' "$truth")" -eq 3
+
+    for collection in reference alternate; do
+        input="$work_dir/variant_fixture/$collection.fa"
+        "$runner" "$input" "$work_dir/${collection}_rle"
+        "$runner" "$input" "$work_dir/${collection}_plain" plain
+        "$runner" "$input" "$work_dir/${collection}_packed" packed
+        PYTHONPATH="$repo_dir/scripts" python3 - "$work_dir" "$collection" <<'PY'
+from pathlib import Path
+import sys
+from bwt_format import read_all
+
+root = Path(sys.argv[1])
+name = sys.argv[2]
+plain = read_all(root / f"{name}_plain.ebwt", "$", 64 * 1024 * 1024)
+assert read_all(root / f"{name}_rle.rl_bwt", "$", 64 * 1024 * 1024) == plain
+assert read_all(root / f"{name}_packed.pck_bwt", "$", 64 * 1024 * 1024) == plain
+PY
+    done
+
+    "$EBWT2INDEL_BIN" -1 "$work_dir/reference_plain.ebwt" \
+        -2 "$work_dir/alternate_plain.ebwt" -o "$work_dir/variants_plain.snp" -t 36 \
+        >"$work_dir/variants_plain.log" 2>&1
+    "$EBWT2INDEL_BIN" -1 "$work_dir/reference_rle.rl_bwt" \
+        -2 "$work_dir/alternate_rle.rl_bwt" -o "$work_dir/variants_rle.snp" -t 36 \
+        >"$work_dir/variants_rle.log" 2>&1
+    "$EBWT2INDEL_BIN" -1 "$work_dir/reference_packed.pck_bwt" \
+        -2 "$work_dir/alternate_packed.pck_bwt" -o "$work_dir/variants_packed.snp" -t 36 \
+        >"$work_dir/variants_packed.log" 2>&1
+    cmp "$work_dir/variants_plain.snp" "$work_dir/variants_rle.snp"
+    cmp "$work_dir/variants_plain.snp" "$work_dir/variants_packed.snp"
 fi
 
 echo "PASS: ebwt2InDel BCR path"

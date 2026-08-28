@@ -74,19 +74,31 @@ make
 
 ### eBWT-only path for ebwt2InDel
 
-The dedicated target keeps LCP, DA, SA, SAP, and quality-score output disabled. It uses a 1 MiB sequential-I/O buffer and a 128 MiB upper budget for FASTA transposition buffers:
+The dedicated target keeps LCP, DA, SA, SAP, and quality-score output disabled. It uses a 1 MiB sequential-I/O buffer, a 128 MiB upper budget for FASTA transposition buffers, gzip-compressed `cyc.*` files, and block-packed 3-bit partial BWT files:
 
 ```sh
 make ebwt2indel
 scripts/run_bcr_for_ebwt2indel.sh reads.fa.gz results/reads
 ```
 
-The runner auto-detects FASTA or FASTQ content, either plain or gzip-compressed, and accepts nonempty sequences containing uppercase `A`, `C`, `G`, and `T`. The eBWT-only target reads FASTQ sequence lines but intentionally does not retain or permute quality scores; use `make FASTQ=1` for the separate quality-score workflow. With the default sequence-length type, reads may be at most 254 bases. The runner executes BCR in an isolated staging directory, validates the final length, alphabet, and terminator count, and publishes only `results/reads.ebwt` plus small diagnostic/resource logs. It refuses to overwrite an existing output and retains its isolated stage after a failure.
+The runner auto-detects FASTA or FASTQ content, either plain or gzip-compressed, and accepts nonempty sequences containing uppercase `A`, `C`, `G`, and `T`. The eBWT-only target reads FASTQ sequence lines but intentionally does not retain or permute quality scores; use `make FASTQ=1` for the separate quality-score workflow. With the default sequence-length type, reads may be at most 254 bases.
+
+The default final output is `results/reads.rl_bwt`. It uses adaptive 1 MiB blocks: every block is encoded as RLE or 3-bit packed DNA, whichever is smaller. Explicit alternatives remain available:
+
+```sh
+scripts/run_bcr_for_ebwt2indel.sh reads.fa results/reads rle
+scripts/run_bcr_for_ebwt2indel.sh reads.fa results/reads packed
+scripts/run_bcr_for_ebwt2indel.sh reads.fa results/reads plain
+```
+
+The corresponding suffixes are `.rl_bwt`, `.pck_bwt`, and `.ebwt`. Compressed files start with a self-describing 32-byte header containing the `EBWTCMP1` magic, format version, encoding, terminator, decoded length, and CRC32. Consumers should detect the format from this header; a file without the magic is treated as a legacy plain eBWT.
+
+The runner executes BCR in an isolated staging directory, validates the final length, alphabet, checksum, and terminator count, deletes `.len`, `.info`, `cyc.*`, and partial BWT artifacts after success, and publishes one final BWT plus small diagnostic/resource logs. The `.bcr.space.tsv` log samples staging-space use and records `peak` bytes. The runner refuses to overwrite an existing output and retains its isolated stage after a failure.
 
 BCR writes `$` (ASCII 36) as its terminator. Pass that value explicitly to ebwt2InDel:
 
 ```sh
-ebwt2InDel -1 results/reads.ebwt -o results/reads.snp -t 36
+ebwt2InDel -1 results/reads.rl_bwt -o results/reads.snp -t 36
 ```
 
 The buffer budgets are compile-time settings and can be adjusted without editing headers:

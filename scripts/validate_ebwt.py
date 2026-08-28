@@ -9,6 +9,8 @@ import gzip
 from pathlib import Path
 import sys
 
+from bwt_format import BwtReader, read_all
+
 
 DNA = frozenset("ACGT")
 
@@ -133,21 +135,23 @@ def sequence_stats(path: Path, max_read_length: int) -> tuple[str, int, int, int
     return input_format, sequences, total_bases, longest
 
 
-def ebwt_stats(path: Path, terminator: str) -> tuple[int, int]:
+def ebwt_stats(path: Path, terminator: str) -> tuple[int, int, str, int]:
     allowed = {ord(base) for base in DNA}
     allowed.add(ord(terminator))
     size = 0
     terminators = 0
 
-    with path.open("rb") as handle:
-        while chunk := handle.read(1024 * 1024):
+    with BwtReader(path, terminator) as handle:
+        encoding = handle.encoding
+        stored_bytes = path.stat().st_size
+        for chunk in handle.chunks():
             size += len(chunk)
             invalid = sorted(set(chunk) - allowed)
             if invalid:
                 shown = ", ".join(str(value) for value in invalid[:8])
                 raise ValueError(f"eBWT contains unsupported byte value(s): {shown}")
             terminators += chunk.count(ord(terminator))
-    return size, terminators
+    return size, terminators, encoding, stored_bytes
 
 
 def input_multiset(path: Path) -> Counter[bytes]:
@@ -155,12 +159,7 @@ def input_multiset(path: Path) -> Counter[bytes]:
 
 
 def invert_ebwt(path: Path, terminator: str, max_bytes: int) -> Counter[bytes]:
-    size = path.stat().st_size
-    if size > max_bytes:
-        raise ValueError(
-            f"refusing in-memory inversion of {size} bytes; limit is {max_bytes}"
-        )
-    bwt = path.read_bytes()
+    bwt = read_all(path, terminator, max_bytes)
     term = ord(terminator)
     counts = [0] * 256
     for symbol in bwt:
@@ -228,7 +227,9 @@ def main() -> int:
     ]
 
     if args.ebwt is not None:
-        ebwt_bytes, terminators = ebwt_stats(args.ebwt, args.terminator)
+        ebwt_bytes, terminators, encoding, stored_bytes = ebwt_stats(
+            args.ebwt, args.terminator
+        )
         expected_bytes = bases + sequences
         if ebwt_bytes != expected_bytes:
             raise ValueError(f"eBWT size is {ebwt_bytes}, expected {expected_bytes}")
@@ -237,6 +238,8 @@ def main() -> int:
         fields.extend(
             [
                 f"ebwt_bytes={ebwt_bytes}",
+                f"ebwt_encoding={encoding}",
+                f"ebwt_stored_bytes={stored_bytes}",
                 f"terminator_ascii={ord(args.terminator)}",
                 f"terminators={terminators}",
             ]
